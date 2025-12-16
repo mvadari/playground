@@ -1,6 +1,6 @@
 // XRPL Transaction Test Generator
 // Main application logic
-// Version 2.0.1 - Fixed transaction type field display and search
+// Version 2.2.2 - Simplified transaction signing using client.submitAndWait with autofill
 
 // Global state
 let definitions = null;
@@ -376,18 +376,73 @@ function createWorkspaceBlock(fieldName, blockType, value, isTransactionType) {
 
         block.appendChild(select);
     } else {
-        // Regular field is an input
-        const input = document.createElement('input');
-        input.className = 'block-input';
-        input.type = 'text';
-        input.placeholder = `Enter ${fieldName}`;
-        input.value = value;
+        // Check if this is an Account field
+        const fieldInfo = getFieldInfo(fieldName);
+        const isAccountField = fieldInfo && fieldInfo.type === 'AccountID';
 
-        input.addEventListener('input', (e) => {
-            updateFieldValue(fieldName, e.target.value);
-        });
+        if (isAccountField && accounts.length > 0) {
+            // Create a container for input and dropdown
+            const inputContainer = document.createElement('div');
+            inputContainer.className = 'input-with-dropdown';
 
-        block.appendChild(input);
+            // Regular input
+            const input = document.createElement('input');
+            input.className = 'block-input';
+            input.type = 'text';
+            input.placeholder = `Enter ${fieldName}`;
+            input.value = value;
+
+            input.addEventListener('input', (e) => {
+                updateFieldValue(fieldName, e.target.value);
+            });
+
+            // Account selector dropdown
+            const accountSelect = document.createElement('select');
+            accountSelect.className = 'account-selector';
+            accountSelect.title = 'Select from saved accounts';
+
+            // Add placeholder option
+            const placeholderOption = document.createElement('option');
+            placeholderOption.value = '';
+            placeholderOption.textContent = '👤 Select Account';
+            accountSelect.appendChild(placeholderOption);
+
+            // Add accounts
+            accounts.forEach(account => {
+                const option = document.createElement('option');
+                option.value = account.address;
+                option.textContent = account.address;
+                option.title = account.seed ? 'Has signing key' : 'View only';
+                accountSelect.appendChild(option);
+            });
+
+            accountSelect.addEventListener('change', (e) => {
+                if (e.target.value) {
+                    input.value = e.target.value;
+                    updateFieldValue(fieldName, e.target.value);
+                    updateJSONOutput();
+                }
+                // Reset dropdown to placeholder
+                e.target.value = '';
+            });
+
+            inputContainer.appendChild(input);
+            inputContainer.appendChild(accountSelect);
+            block.appendChild(inputContainer);
+        } else {
+            // Regular field is an input
+            const input = document.createElement('input');
+            input.className = 'block-input';
+            input.type = 'text';
+            input.placeholder = `Enter ${fieldName}`;
+            input.value = value;
+
+            input.addEventListener('input', (e) => {
+                updateFieldValue(fieldName, e.target.value);
+            });
+
+            block.appendChild(input);
+        }
 
         // Add remove button
         const removeBtn = document.createElement('button');
@@ -467,10 +522,13 @@ function buildTransactionObject() {
 
     // Add fields with values
     workspaceBlocks.forEach(block => {
-        if (block.value && block.value.trim() !== '') {
+        // Convert value to string if it's not already
+        const valueStr = typeof block.value === 'string' ? block.value : String(block.value);
+
+        if (block.value && valueStr.trim() !== '') {
             // Try to convert to appropriate type
             const fieldInfo = getFieldInfo(block.fieldName);
-            transaction[block.fieldName] = convertFieldValue(block.value, fieldInfo);
+            transaction[block.fieldName] = convertFieldValue(valueStr, fieldInfo);
         }
     });
 
@@ -787,12 +845,52 @@ function isValidXRPLAddress(address) {
     return /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(address);
 }
 
+async function fundAccount(address) {
+    const faucets = {
+        testnet: 'https://faucet.altnet.rippletest.net/accounts',
+        devnet: 'https://faucet.devnet.rippletest.net/accounts'
+    };
+
+    const faucetUrl = faucets[currentNetwork];
+    if (!faucetUrl) {
+        showMessage('❌ Faucet not available for this network', 'error');
+        return;
+    }
+
+    try {
+        showMessage(`💰 Requesting funds for ${address}...`, 'info');
+
+        const response = await fetch(faucetUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                destination: address
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Faucet request failed: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        showMessage(`✅ Account funded! Balance: ${data.balance?.value || 'Unknown'} XRP`, 'success');
+        console.log('Faucet response:', data);
+
+    } catch (error) {
+        showMessage(`❌ Error funding account: ${error.message}`, 'error');
+        console.error('Faucet error:', error);
+    }
+}
+
 function renderAccounts() {
     const list = document.getElementById('accounts-list');
     list.innerHTML = '';
 
     if (accounts.length === 0) {
         list.innerHTML = '<p class="no-accounts">No accounts added</p>';
+        refreshAccountDropdowns();
         return;
     }
 
@@ -810,19 +908,145 @@ function renderAccounts() {
         addressSpan.textContent = account.address;
         addressSpan.title = account.address;
 
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'account-buttons';
+
+        // Add Fund button for testnet/devnet
+        if (currentNetwork !== 'mainnet') {
+            const fundBtn = document.createElement('button');
+            fundBtn.className = 'account-fund';
+            fundBtn.textContent = '💰';
+            fundBtn.title = 'Fund account from faucet';
+            fundBtn.addEventListener('click', () => fundAccount(account.address));
+            buttonContainer.appendChild(fundBtn);
+        }
+
         const removeBtn = document.createElement('button');
         removeBtn.className = 'account-remove';
         removeBtn.textContent = '×';
+        removeBtn.title = 'Remove account';
         removeBtn.addEventListener('click', () => {
             accounts.splice(index, 1);
             renderAccounts();
             showMessage(`🗑️ Account removed: ${account.address}`, 'info');
         });
 
+        buttonContainer.appendChild(removeBtn);
+
         item.appendChild(icon);
         item.appendChild(addressSpan);
-        item.appendChild(removeBtn);
+        item.appendChild(buttonContainer);
         list.appendChild(item);
+    });
+
+    // Refresh all account dropdowns in workspace
+    refreshAccountDropdowns();
+}
+
+function refreshAccountDropdowns() {
+    // First, update existing dropdowns
+    const accountSelectors = document.querySelectorAll('.account-selector');
+
+    accountSelectors.forEach(select => {
+        const currentValue = select.value;
+
+        // Clear existing options
+        select.innerHTML = '';
+
+        // Add placeholder
+        const placeholderOption = document.createElement('option');
+        placeholderOption.value = '';
+        placeholderOption.textContent = accounts.length > 0 ? '👤 Select Account' : '👤 No Accounts';
+        placeholderOption.disabled = accounts.length === 0;
+        select.appendChild(placeholderOption);
+
+        // Add accounts
+        accounts.forEach(account => {
+            const option = document.createElement('option');
+            option.value = account.address;
+            option.textContent = account.address;
+            option.title = account.seed ? 'Has signing key' : 'View only';
+            select.appendChild(option);
+        });
+
+        // Restore selection if it was set
+        select.value = currentValue;
+    });
+
+    // Second, rebuild AccountID blocks that don't have dropdowns yet
+    const workspaceBlocks = document.querySelectorAll('.workspace-block');
+    workspaceBlocks.forEach(blockWrapper => {
+        const fieldName = blockWrapper.dataset.field;
+        if (!fieldName || fieldName === 'TransactionType') return;
+
+        const fieldInfo = getFieldInfo(fieldName);
+        const isAccountField = fieldInfo && fieldInfo.type === 'AccountID';
+
+        // If it's an account field and doesn't have a dropdown yet, rebuild it
+        if (isAccountField && !blockWrapper.querySelector('.account-selector') && accounts.length > 0) {
+            const block = blockWrapper.querySelector('.block');
+            const input = block.querySelector('.block-input');
+            const currentValue = input ? input.value : '';
+
+            // Get the block type
+            const blockType = block.className.split(' ').find(c => c.endsWith('-field')) || 'common-field';
+
+            // Remove the old input
+            if (input) {
+                input.remove();
+            }
+
+            // Create new input with dropdown
+            const inputContainer = document.createElement('div');
+            inputContainer.className = 'input-with-dropdown';
+
+            const newInput = document.createElement('input');
+            newInput.className = 'block-input';
+            newInput.type = 'text';
+            newInput.placeholder = `Enter ${fieldName}`;
+            newInput.value = currentValue;
+
+            newInput.addEventListener('input', (e) => {
+                updateFieldValue(fieldName, e.target.value);
+            });
+
+            // Account selector dropdown
+            const accountSelect = document.createElement('select');
+            accountSelect.className = 'account-selector';
+            accountSelect.title = 'Select from saved accounts';
+
+            // Add placeholder option
+            const placeholderOption = document.createElement('option');
+            placeholderOption.value = '';
+            placeholderOption.textContent = '👤 Select Account';
+            accountSelect.appendChild(placeholderOption);
+
+            // Add accounts
+            accounts.forEach(account => {
+                const option = document.createElement('option');
+                option.value = account.address;
+                option.textContent = account.address;
+                option.title = account.seed ? 'Has signing key' : 'View only';
+                accountSelect.appendChild(option);
+            });
+
+            accountSelect.addEventListener('change', (e) => {
+                if (e.target.value) {
+                    newInput.value = e.target.value;
+                    updateFieldValue(fieldName, e.target.value);
+                    updateJSONOutput();
+                }
+                // Reset dropdown to placeholder
+                e.target.value = '';
+            });
+
+            inputContainer.appendChild(newInput);
+            inputContainer.appendChild(accountSelect);
+
+            // Insert before the remove button
+            const removeBtn = block.querySelector('.block-remove');
+            block.insertBefore(inputContainer, removeBtn);
+        }
     });
 }
 
@@ -870,7 +1094,7 @@ async function submitTransaction() {
         const client = new xrpl.Client(endpoint);
         await client.connect();
 
-        showMessage('🔄 Preparing transaction...', 'info');
+        showMessage('🔄 Preparing and signing transaction...', 'info');
 
         // Create wallet from seed
         const wallet = xrpl.Wallet.fromSeed(signingAccount.seed);
@@ -880,18 +1104,17 @@ async function submitTransaction() {
             transaction.Account = wallet.address;
         }
 
-        // Prepare transaction (auto-fills Fee, Sequence, LastLedgerSequence)
-        const prepared = await client.autofill(transaction);
+        // Submit and wait for validation (autofill and sign automatically)
+        const result = await client.submitAndWait(transaction, {
+            autofill: true,
+            wallet: wallet
+        });
 
-        showMessage('🔄 Signing transaction...', 'info');
-
-        // Sign the transaction
-        const signed = wallet.sign(prepared);
-
-        showMessage('🔄 Submitting transaction...', 'info');
-
-        // Submit and wait for validation
-        const result = await client.submitAndWait(signed.tx_blob);
+        // Update workspace with the submitted transaction
+        if (result.result.tx_json) {
+            updateWorkspaceWithTransaction(result.result.tx_json);
+            showMessage('✅ Transaction autofilled and signed', 'success');
+        }
 
         await client.disconnect();
 
@@ -907,6 +1130,47 @@ async function submitTransaction() {
         showMessage(`❌ Error: ${error.message}`, 'error');
         console.error('Transaction error:', error);
     }
+}
+
+function updateWorkspaceWithTransaction(transaction) {
+    // Update existing fields or add new ones with autofilled values
+    Object.entries(transaction).forEach(([fieldName, value]) => {
+        if (fieldName === 'TransactionType') return; // Skip, already set
+
+        // Convert value to string
+        const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+
+        // Check if field already exists in workspace
+        const existingBlock = document.querySelector(`.workspace-block[data-field="${fieldName}"]`);
+
+        if (existingBlock) {
+            // Update existing field value
+            const input = existingBlock.querySelector('.block-input');
+            if (input) {
+                input.value = valueStr;
+                updateFieldValue(fieldName, valueStr);
+            }
+        } else {
+            // Add new field block
+            const fieldInfo = getFieldInfo(fieldName);
+            if (fieldInfo) {
+                const blockType = getBlockTypeForField(fieldInfo);
+
+                // Add to workspace blocks array
+                workspaceBlocks.push({
+                    fieldName: fieldName,
+                    value: valueStr
+                });
+
+                // Create and add the block to workspace
+                const workspace = document.getElementById('workspace');
+                const blockWrapper = createWorkspaceBlock(fieldName, blockType, valueStr, false);
+                workspace.appendChild(blockWrapper);
+            }
+        }
+    });
+
+    updateJSONOutput();
 }
 
 function showMessage(message, type = 'info') {

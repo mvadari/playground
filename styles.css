@@ -434,6 +434,7 @@ header p {
 .block.number-field { background: var(--block-number); }
 .block.hash-field { background: var(--block-hash); }
 .block.blob-field { background: var(--block-blob); }
+.block.object-field { background: var(--block-blob); }
 .block.common-field { background: var(--block-common); }
 
 /* Workspace */
@@ -516,6 +517,7 @@ header p {
 .workspace-block .block-label {
     font-weight: 600;
     margin-right: 0.5rem;
+    color: white;
 }
 
 .workspace-block .block-input {
@@ -668,6 +670,35 @@ header p {
 
 .blob-convert-btn:hover {
     background: rgba(156, 39, 176, 0.5);
+}
+
+/* STArray/STObject textarea */
+.block-textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: none;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.3);
+    color: #e0e0e0;
+    font-family: monospace;
+    font-size: 0.75rem;
+    resize: vertical;
+    min-height: 80px;
+}
+
+.block-textarea::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.block-textarea:focus {
+    outline: none;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.block-textarea.json-error {
+    border: 2px solid rgba(244, 67, 54, 0.8);
+    background: rgba(244, 67, 54, 0.15);
 }
 
 /* Flags field container */

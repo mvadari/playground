@@ -1301,6 +1301,7 @@ function getBlockTypeForField(fieldInfo) {
     if (type.startsWith('UInt') || type === 'Number') return 'number-field';
     if (type.startsWith('Hash')) return 'hash-field';
     if (type === 'Blob') return 'blob-field';
+    if (type === 'STArray' || type === 'STObject') return 'object-field';
 
     return 'common-field';
 }
@@ -1541,6 +1542,34 @@ function createWorkspaceBlock(fieldName, blockType, value, isTransactionType) {
             // Flags field with checkboxes for transaction-specific flags
             const flagsContainer = createFlagsInput(fieldName, value);
             block.appendChild(flagsContainer);
+        } else if (fieldInfo && (fieldInfo.type === 'STArray' || fieldInfo.type === 'STObject')) {
+            // STArray/STObject field with JSON textarea
+            const textarea = document.createElement('textarea');
+            textarea.className = 'block-textarea';
+            textarea.placeholder = `Enter ${fieldName} as JSON (e.g., for Memos: [{"Memo":{"MemoData":"..."}}])`;
+            textarea.rows = 4;
+
+            // Format existing value if it's an object/array
+            if (typeof value === 'object') {
+                textarea.value = JSON.stringify(value, null, 2);
+            } else {
+                textarea.value = value;
+            }
+
+            textarea.addEventListener('input', (e) => {
+                // Try to parse as JSON, but store as string if it fails
+                try {
+                    const parsed = JSON.parse(e.target.value);
+                    updateFieldValue(fieldName, parsed);
+                    textarea.classList.remove('json-error');
+                } catch (err) {
+                    // Store as string for now, will try to parse on submit
+                    updateFieldValue(fieldName, e.target.value);
+                    textarea.classList.add('json-error');
+                }
+            });
+
+            block.appendChild(textarea);
         } else {
             // Regular field is an input
             const input = document.createElement('input');
@@ -1859,7 +1888,7 @@ function showWorkspacePlaceholder(mode = 'empty') {
     } else {
         // Default: editing a test but it's empty
         placeholder.innerHTML = `
-            <p>�👆 Drag blocks here to build your transaction</p>
+            <p�👆 Drag blocks here to build your transaction</p>
             <p class="hint">Start with a Transaction Type block</p>
         `;
     }

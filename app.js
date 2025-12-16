@@ -1510,17 +1510,13 @@ function loadExample(exampleType = 'payment') {
             fields: [
                 { name: 'Account', value: 'rN7n7otQDd6FczFgLdlqtyMVrn3HMfgnHf', class: 'account-field' },
                 { name: 'Destination', value: 'rLHzPsX6oXkzU9rFkRrJYTetvcqrKKKKKK', class: 'account-field' },
-                { name: 'Amount', value: '1000000', class: 'amount-field' },
-                { name: 'Fee', value: '12', class: 'common-field' },
-                { name: 'Sequence', value: '1', class: 'number-field' }
+                { name: 'Amount', value: '1000000', class: 'amount-field' }
             ]
         },
         trustset: {
             type: 'TrustSet',
             fields: [
                 { name: 'Account', value: 'rN7n7otQDd6FczFgLdlqtyMVrn3HMfgnHf', class: 'account-field' },
-                { name: 'Fee', value: '12', class: 'common-field' },
-                { name: 'Sequence', value: '1', class: 'number-field' },
                 { name: 'LimitAmount', value: '1000000000', class: 'amount-field' }
             ]
         },
@@ -1528,8 +1524,6 @@ function loadExample(exampleType = 'payment') {
             type: 'AccountSet',
             fields: [
                 { name: 'Account', value: 'rN7n7otQDd6FczFgLdlqtyMVrn3HMfgnHf', class: 'account-field' },
-                { name: 'Fee', value: '12', class: 'common-field' },
-                { name: 'Sequence', value: '1', class: 'number-field' },
                 { name: 'SetFlag', value: '5', class: 'number-field' }
             ]
         },
@@ -1537,8 +1531,6 @@ function loadExample(exampleType = 'payment') {
             type: 'OfferCreate',
             fields: [
                 { name: 'Account', value: 'rN7n7otQDd6FczFgLdlqtyMVrn3HMfgnHf', class: 'account-field' },
-                { name: 'Fee', value: '12', class: 'common-field' },
-                { name: 'Sequence', value: '1', class: 'number-field' },
                 { name: 'TakerGets', value: '1000000', class: 'amount-field' },
                 { name: 'TakerPays', value: '2000000', class: 'amount-field' }
             ]

@@ -13,58 +13,50 @@
     </header>
 
     <main class="container">
+        <!-- Top Panel: Network & Accounts -->
+        <section class="settings-panel">
+            <div class="settings-grid">
+                <!-- Network Selector -->
+                <div class="settings-box">
+                    <h3>🌐 Network</h3>
+                    <select id="network-select" class="full-width-select">
+                        <option value="mainnet">Mainnet</option>
+                        <option value="testnet" selected>Testnet</option>
+                        <option value="devnet">Devnet</option>
+                    </select>
+                    <p class="network-info" id="network-info">Connected to Testnet</p>
+                </div>
+
+                <!-- Account Management -->
+                <div class="settings-box">
+                    <h3>👤 Accounts</h3>
+                    <div class="account-actions">
+                        <button id="add-account-btn" class="btn btn-secondary btn-sm">+ Add Account</button>
+                        <button id="generate-account-btn" class="btn btn-primary btn-sm">🔑 Generate</button>
+                    </div>
+                    <div id="accounts-list" class="accounts-list"></div>
+                </div>
+            </div>
+        </section>
+
         <!-- Left Panel: Block Palette -->
         <aside class="palette-panel">
             <h2>Block Palette</h2>
-            
+
             <div class="palette-section">
-                <h3 class="palette-category">Transaction Type</h3>
-                <div id="transaction-types-palette" class="palette-blocks">
+                <h3 class="palette-category">1. Select Transaction Type</h3>
+                <input type="text" id="tx-type-search" placeholder="Search transaction types..." class="search-input" />
+                <div id="transaction-types-palette" class="palette-blocks scrollable">
                     <!-- Dynamically populated -->
                 </div>
             </div>
 
-            <div class="palette-section">
-                <h3 class="palette-category collapsible" data-target="common-fields">Common Fields</h3>
-                <div id="common-fields" class="palette-blocks">
-                    <!-- Dynamically populated -->
-                </div>
+            <div id="fields-section" class="fields-section" style="display: none;">
+                <h3 class="palette-category">2. Add Fields</h3>
+                <p class="helper-text">Drag fields to the workspace</p>
+                <div id="available-fields-container"></div>
             </div>
 
-            <div class="palette-section">
-                <h3 class="palette-category collapsible" data-target="account-fields">Account Fields</h3>
-                <div id="account-fields" class="palette-blocks collapsed">
-                    <!-- Dynamically populated -->
-                </div>
-            </div>
-
-            <div class="palette-section">
-                <h3 class="palette-category collapsible" data-target="amount-fields">Amount Fields</h3>
-                <div id="amount-fields" class="palette-blocks collapsed">
-                    <!-- Dynamically populated -->
-                </div>
-            </div>
-
-            <div class="palette-section">
-                <h3 class="palette-category collapsible" data-target="number-fields">Number Fields</h3>
-                <div id="number-fields" class="palette-blocks collapsed">
-                    <!-- Dynamically populated -->
-                </div>
-            </div>
-
-            <div class="palette-section">
-                <h3 class="palette-category collapsible" data-target="hash-fields">Hash Fields</h3>
-                <div id="hash-fields" class="palette-blocks collapsed">
-                    <!-- Dynamically populated -->
-                </div>
-            </div>
-
-            <div class="palette-section">
-                <h3 class="palette-category collapsible" data-target="blob-fields">Blob Fields</h3>
-                <div id="blob-fields" class="palette-blocks collapsed">
-                    <!-- Dynamically populated -->
-                </div>
-            </div>
         </aside>
 
         <!-- Center Panel: Workspace -->
@@ -80,6 +72,7 @@
                         <option value="accountset">AccountSet</option>
                         <option value="offercreate">OfferCreate</option>
                     </select>
+                    <button id="submit-tx-btn" class="btn btn-primary">🚀 Submit to XRPL</button>
                 </div>
             </div>
             <div id="workspace" class="workspace">
@@ -113,6 +106,7 @@
         </p>
     </footer>
 
+    <script src="https://unpkg.com/xrpl@3.0.0/build/xrpl-latest-min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

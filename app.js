@@ -1,10 +1,14 @@
 // XRPL Transaction Test Generator
 // Main application logic
+// Version 2.0.1 - Fixed transaction type field display and search
 
 // Global state
 let definitions = null;
 let workspaceBlocks = [];
 let transactionType = null;
+let draggedData = null;
+let currentNetwork = 'testnet';
+let accounts = [];
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', async () => {
@@ -12,6 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializePalette();
     initializeEventListeners();
     initializeKeyboardShortcuts();
+    initializeNetworkManagement();
     updateJSONOutput();
 });
 
@@ -31,28 +36,25 @@ async function loadDefinitions() {
 function initializePalette() {
     if (!definitions) return;
 
-    // Generate transaction type blocks
+    // Generate transaction type blocks only
     generateTransactionTypeBlocks();
-    
-    // Generate field blocks by category
-    generateFieldBlocks();
-    
-    // Setup collapsible categories
-    setupCollapsibleCategories();
+    // Fields will be generated after transaction type is selected
 }
 
 // Generate transaction type blocks
 function generateTransactionTypeBlocks() {
     const container = document.getElementById('transaction-types-palette');
     const types = definitions.TRANSACTION_TYPES;
-    
+
     // Filter out invalid types and sort alphabetically
     const validTypes = Object.entries(types)
         .filter(([name, value]) => value >= 0)
         .sort((a, b) => a[0].localeCompare(b[0]));
-    
+
     validTypes.forEach(([typeName, typeValue]) => {
         const block = createPaletteBlock(typeName, 'transaction-type', 'TransactionType');
+        // Store the actual transaction type name in a data attribute
+        block.dataset.transactionType = typeName;
         container.appendChild(block);
     });
 }
@@ -178,12 +180,11 @@ function handleExampleSelection(e) {
 }
 
 // Drag and Drop Handlers
-let draggedData = null;
-
 function handleDragStart(e) {
     draggedData = {
         fieldName: e.target.dataset.fieldName,
-        blockType: e.target.dataset.blockType
+        blockType: e.target.dataset.blockType,
+        transactionType: e.target.dataset.transactionType // For transaction type blocks
     };
     e.dataTransfer.effectAllowed = 'copy';
 }
@@ -208,7 +209,7 @@ function handleDrop(e) {
 
     // Check if it's a transaction type block
     if (draggedData.blockType === 'transaction-type') {
-        setTransactionType(draggedData.fieldName);
+        setTransactionType(draggedData.transactionType);
     } else {
         addFieldBlock(draggedData.fieldName, draggedData.blockType);
     }
@@ -236,6 +237,82 @@ function setTransactionType(typeName) {
 
     const blockWrapper = createWorkspaceBlock('TransactionType', 'transaction-type', typeName, true);
     workspace.insertBefore(blockWrapper, workspace.firstChild);
+
+    // Show fields section and populate with relevant fields
+    showFieldsForTransactionType(typeName);
+}
+
+function showFieldsForTransactionType(typeName) {
+    const fieldsSection = document.getElementById('fields-section');
+    const container = document.getElementById('available-fields-container');
+
+    // Show the fields section
+    fieldsSection.style.display = 'block';
+
+    // Clear existing fields
+    container.innerHTML = '';
+
+    // Get valid fields for this transaction type
+    let validFields = [];
+
+    if (definitions.TRANSACTION_FORMATS && definitions.TRANSACTION_FORMATS[typeName]) {
+        const format = definitions.TRANSACTION_FORMATS[typeName];
+        validFields = format.map(f => ({
+            name: f.name,
+            required: f.required === 0 // 0 = required, 1 = optional, 2 = default
+        }));
+        console.log(`Found ${validFields.length} fields for ${typeName}:`, validFields.map(f => f.name));
+    } else {
+        console.warn(`No TRANSACTION_FORMATS found for ${typeName}`);
+    }
+
+    // Always add common fields if not already present
+    const commonFields = ['Account', 'Fee', 'Sequence', 'LastLedgerSequence', 'SigningPubKey'];
+    commonFields.forEach(fieldName => {
+        if (!validFields.find(f => f.name === fieldName)) {
+            validFields.push({ name: fieldName, required: false });
+        }
+    });
+
+    // Sort: required first, then alphabetically
+    validFields.sort((a, b) => {
+        if (a.required !== b.required) return a.required ? -1 : 1;
+        return a.name.localeCompare(b.name);
+    });
+
+    console.log(`Total fields to display: ${validFields.length}`);
+
+    // Create field blocks
+    validFields.forEach(field => {
+        const fieldInfo = getFieldInfo(field.name);
+        if (!fieldInfo) {
+            console.warn(`No field info found for ${field.name}`);
+            return;
+        }
+
+        const blockType = getBlockTypeForField(fieldInfo);
+        const label = field.required ? `${field.name} *` : field.name;
+        const block = createPaletteBlock(label, blockType, field.name);
+
+        // Make required fields bold
+        if (field.required) {
+            block.style.fontWeight = 'bold';
+        }
+
+        container.appendChild(block);
+    });
+}
+
+function getBlockTypeForField(fieldInfo) {
+    const type = fieldInfo.type;
+
+    if (type === 'AccountID') return 'account-field';
+    if (type === 'Amount') return 'amount-field';
+    if (type.startsWith('UInt') || type === 'Number') return 'number-field';
+    if (type.startsWith('Hash')) return 'hash-field';
+    if (type === 'Blob') return 'blob-field';
+
+    return 'common-field';
 }
 
 function addFieldBlock(fieldName, blockType) {
@@ -604,5 +681,244 @@ function initializeKeyboardShortcuts() {
             clearValidationMessages();
         }
     });
+}
+
+// Network and Account Management
+function initializeNetworkManagement() {
+    // Network selector
+    document.getElementById('network-select').addEventListener('change', (e) => {
+        currentNetwork = e.target.value;
+        updateNetworkInfo();
+        showMessage(`Switched to ${currentNetwork}`, 'info');
+    });
+
+    // Add account button
+    document.getElementById('add-account-btn').addEventListener('click', addAccount);
+
+    // Generate account button
+    document.getElementById('generate-account-btn').addEventListener('click', generateAccount);
+
+    // Submit transaction button
+    document.getElementById('submit-tx-btn').addEventListener('click', submitTransaction);
+
+    // Transaction type search
+    const searchInput = document.getElementById('tx-type-search');
+    searchInput.addEventListener('input', (e) => {
+        filterTransactionTypes(e.target.value);
+    });
+
+    // Initialize network info
+    updateNetworkInfo();
+}
+
+function updateNetworkInfo() {
+    const networkInfo = document.getElementById('network-info');
+    const networks = {
+        mainnet: 'wss://xrplcluster.com',
+        testnet: 'wss://s.altnet.rippletest.net:51233',
+        devnet: 'wss://s.devnet.rippletest.net:51233'
+    };
+    networkInfo.textContent = `Connected to ${currentNetwork.charAt(0).toUpperCase() + currentNetwork.slice(1)} (${networks[currentNetwork]})`;
+}
+
+function addAccount() {
+    const address = prompt('Enter XRPL account address:');
+    if (!address || address.trim() === '') return; // Cancelled or empty
+
+    const accountAddress = address.trim();
+
+    if (!isValidXRPLAddress(accountAddress)) {
+        showMessage('❌ Invalid XRPL address format', 'error');
+        return;
+    }
+
+    // Check if account already exists
+    if (accounts.find(acc => acc.address === accountAddress)) {
+        showMessage('⚠️ Account already added', 'warning');
+        return;
+    }
+
+    accounts.push({
+        address: accountAddress,
+        seed: null // No seed for manually added accounts
+    });
+    renderAccounts();
+    showMessage(`✅ Account added: ${accountAddress}`, 'success');
+}
+
+async function generateAccount() {
+    try {
+        // Use xrpl.js to generate a new wallet
+        if (typeof xrpl === 'undefined') {
+            showMessage('❌ xrpl.js library not loaded', 'error');
+            return;
+        }
+
+        const wallet = xrpl.Wallet.generate();
+
+        accounts.push({
+            address: wallet.address,
+            seed: wallet.seed
+        });
+
+        renderAccounts();
+        showMessage(`✅ Generated new account: ${wallet.address}`, 'success');
+
+        // Show seed in a prompt for user to save
+        alert(`🔑 SAVE THIS SEED SAFELY!\n\nAddress: ${wallet.address}\nSeed: ${wallet.seed}\n\nYou will need this seed to sign transactions.`);
+
+    } catch (error) {
+        showMessage(`❌ Error generating account: ${error.message}`, 'error');
+    }
+}
+
+function generateTestAddress() {
+    // Generate a random test address (starts with 'r')
+    const chars = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz';
+    let address = 'r';
+    for (let i = 0; i < 33; i++) {
+        address += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return address;
+}
+
+function isValidXRPLAddress(address) {
+    // Basic validation: starts with 'r' and is 25-35 characters
+    return /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(address);
+}
+
+function renderAccounts() {
+    const list = document.getElementById('accounts-list');
+    list.innerHTML = '';
+
+    if (accounts.length === 0) {
+        list.innerHTML = '<p class="no-accounts">No accounts added</p>';
+        return;
+    }
+
+    accounts.forEach((account, index) => {
+        const item = document.createElement('div');
+        item.className = 'account-item';
+
+        const icon = document.createElement('span');
+        icon.className = 'account-icon';
+        icon.textContent = account.seed ? '🔑' : '👁️';
+        icon.title = account.seed ? 'Has private key' : 'View only';
+
+        const addressSpan = document.createElement('span');
+        addressSpan.className = 'account-address';
+        addressSpan.textContent = account.address;
+        addressSpan.title = account.address;
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'account-remove';
+        removeBtn.textContent = '×';
+        removeBtn.addEventListener('click', () => {
+            accounts.splice(index, 1);
+            renderAccounts();
+            showMessage(`🗑️ Account removed: ${account.address}`, 'info');
+        });
+
+        item.appendChild(icon);
+        item.appendChild(addressSpan);
+        item.appendChild(removeBtn);
+        list.appendChild(item);
+    });
+}
+
+function filterTransactionTypes(searchTerm) {
+    const blocks = document.querySelectorAll('#transaction-types-palette .block');
+    const term = searchTerm.toLowerCase();
+
+    blocks.forEach(block => {
+        const text = block.textContent.toLowerCase();
+        if (text.includes(term)) {
+            block.style.display = '';
+        } else {
+            block.style.display = 'none';
+        }
+    });
+}
+
+async function submitTransaction() {
+    const transaction = buildTransactionObject();
+
+    if (!transactionType) {
+        showMessage('❌ Please select a transaction type first', 'error');
+        return;
+    }
+
+    // Check if we have an account with a seed
+    const signingAccount = accounts.find(acc => acc.seed);
+    if (!signingAccount) {
+        showMessage('❌ No account with signing key available. Generate an account first.', 'error');
+        return;
+    }
+
+    // Get network endpoint
+    const networks = {
+        mainnet: 'wss://xrplcluster.com',
+        testnet: 'wss://s.altnet.rippletest.net:51233',
+        devnet: 'wss://s.devnet.rippletest.net:51233'
+    };
+
+    const endpoint = networks[currentNetwork];
+
+    try {
+        showMessage(`🔄 Connecting to ${currentNetwork}...`, 'info');
+
+        const client = new xrpl.Client(endpoint);
+        await client.connect();
+
+        showMessage('🔄 Preparing transaction...', 'info');
+
+        // Create wallet from seed
+        const wallet = xrpl.Wallet.fromSeed(signingAccount.seed);
+
+        // Auto-fill Account field if not set
+        if (!transaction.Account) {
+            transaction.Account = wallet.address;
+        }
+
+        // Prepare transaction (auto-fills Fee, Sequence, LastLedgerSequence)
+        const prepared = await client.autofill(transaction);
+
+        showMessage('🔄 Signing transaction...', 'info');
+
+        // Sign the transaction
+        const signed = wallet.sign(prepared);
+
+        showMessage('🔄 Submitting transaction...', 'info');
+
+        // Submit and wait for validation
+        const result = await client.submitAndWait(signed.tx_blob);
+
+        await client.disconnect();
+
+        if (result.result.meta.TransactionResult === 'tesSUCCESS') {
+            showMessage(`✅ Transaction successful! Hash: ${result.result.hash}`, 'success');
+            console.log('Transaction result:', result);
+        } else {
+            showMessage(`⚠️ Transaction failed: ${result.result.meta.TransactionResult}`, 'warning');
+            console.log('Transaction result:', result);
+        }
+
+    } catch (error) {
+        showMessage(`❌ Error: ${error.message}`, 'error');
+        console.error('Transaction error:', error);
+    }
+}
+
+function showMessage(message, type = 'info') {
+    const container = document.getElementById('validation-messages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `validation-message ${type}`;
+    messageDiv.textContent = message;
+    container.appendChild(messageDiv);
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        messageDiv.remove();
+    }, 5000);
 }
 

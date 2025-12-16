@@ -54,11 +54,67 @@ header p {
 .container {
     display: grid;
     grid-template-columns: 280px 1fr 350px;
+    grid-template-rows: auto 1fr;
     gap: 1rem;
     padding: 1rem;
     max-width: 1800px;
     margin: 0 auto;
     height: calc(100vh - 140px);
+}
+
+/* Settings Panel */
+.settings-panel {
+    grid-column: 1 / -1;
+    background: var(--bg-light);
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+}
+
+.settings-box {
+    background: white;
+    padding: 1rem;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+}
+
+.settings-box h3 {
+    margin: 0 0 0.75rem 0;
+    font-size: 1rem;
+    color: var(--secondary-color);
+}
+
+.full-width-select {
+    width: 100%;
+    padding: 0.5rem;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    background: white;
+    font-family: inherit;
+    font-size: 0.9rem;
+}
+
+.network-info {
+    margin: 0.5rem 0 0 0;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.account-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.accounts-list {
+    max-height: 120px;
+    overflow-y: auto;
 }
 
 /* Panel Styles */
@@ -83,6 +139,141 @@ header p {
 /* Palette Sections */
 .palette-section {
     margin-bottom: 1rem;
+}
+
+/* Network Section */
+.network-section {
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.network-selector {
+    margin-bottom: 1rem;
+}
+
+.network-selector label {
+    display: block;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-light);
+}
+
+.network-selector select {
+    width: 100%;
+    padding: 0.5rem;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: var(--bg-dark);
+    color: var(--text-dark);
+    font-family: inherit;
+}
+
+.account-manager {
+    margin-top: 1rem;
+}
+
+.btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+    width: 100%;
+}
+
+#accounts-list {
+    margin-top: 0.5rem;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.account-item {
+    background: rgba(255,255,255,0.1);
+    padding: 0.5rem;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.account-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.account-address {
+    font-family: monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.account-remove {
+    background: rgba(255,0,0,0.3);
+    border: none;
+    color: white;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+}
+
+.account-remove:hover {
+    background: rgba(255,0,0,0.5);
+}
+
+.no-accounts {
+    font-size: 0.85rem;
+    color: #999;
+    font-style: italic;
+    text-align: center;
+    padding: 1rem;
+}
+
+/* Search Input */
+.search-input {
+    width: 100%;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: var(--bg-dark);
+    color: var(--text-dark);
+    font-family: inherit;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+/* Scrollable palette */
+.palette-blocks.scrollable {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* Fields Section */
+.fields-section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid var(--bg-light);
+}
+
+.helper-text {
+    font-size: 0.85rem;
+    color: #666;
+    margin: 0.5rem 0;
+    font-style: italic;
+}
+
+#available-fields-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 .palette-category {

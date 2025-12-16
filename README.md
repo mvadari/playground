@@ -6,10 +6,15 @@ A visual, Scratch-like interface for building XRPL (XRP Ledger) transaction test
 
 - 🎨 **Visual Block-Based Interface** - Scratch-inspired drag-and-drop UI
 - 🔄 **Dynamic Field Generation** - Automatically loads transaction types and fields from `definitions.json`
+- 🎯 **Smart Field Filtering** - Only shows relevant fields for the selected transaction type
+- 🔍 **Searchable Transaction Types** - Quickly find the transaction type you need
+- 🌐 **Network Management** - Switch between Mainnet, Testnet, and Devnet
+- 👤 **Account Management** - Add and manage XRPL accounts for testing
 - ✅ **Real-time Validation** - Validates transaction structure as you build
 - 📋 **JSON Export** - Copy to clipboard or download as JSON file
+- 🚀 **Transaction Submission** - Submit transactions directly to XRPL (requires xrpl.js)
 - 📚 **Example Templates** - Pre-built examples for common transaction types
-- 🎯 **Type-Safe** - Color-coded blocks by field type (Account, Amount, Number, Hash, Blob)
+- 🎨 **Type-Safe** - Color-coded blocks by field type (Account, Amount, Number, Hash, Blob)
 
 ## Usage
 
@@ -24,11 +29,13 @@ A visual, Scratch-like interface for building XRPL (XRP Ledger) transaction test
 
 ### Building Transactions
 
-1. **Start with a Transaction Type** - Drag a transaction type block (e.g., Payment, TrustSet) from the palette to the workspace
-2. **Add Fields** - Drag field blocks from the categorized sections in the palette
-3. **Fill in Values** - Click on fields in the workspace to enter values
-4. **View JSON** - See the generated JSON in real-time on the right panel
-5. **Export** - Copy to clipboard or download the JSON
+1. **Select Network** - Choose Mainnet, Testnet, or Devnet from the network selector
+2. **Add Accounts** (Optional) - Add XRPL accounts for testing
+3. **Choose Transaction Type** - Use the search box to find and drag a transaction type to the workspace
+4. **Add Fields** - Only relevant fields for your transaction type will be shown. Drag them to the workspace
+5. **Fill in Values** - Click on fields in the workspace to enter values
+6. **View JSON** - See the generated JSON in real-time on the right panel
+7. **Submit or Export** - Submit to XRPL network or copy/download the JSON
 
 ### Example Transactions
 

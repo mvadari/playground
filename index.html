@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XRPL Transaction Test Generator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>🧪 XRPL Transaction Test Generator</h1>
+        <p>Build XRPL transactions visually with a Scratch-like interface</p>
+    </header>
+
+    <main class="container">
+        <!-- Left Panel: Block Palette -->
+        <aside class="palette-panel">
+            <h2>Block Palette</h2>
+            
+            <div class="palette-section">
+                <h3 class="palette-category">Transaction Type</h3>
+                <div id="transaction-types-palette" class="palette-blocks">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <div class="palette-section">
+                <h3 class="palette-category collapsible" data-target="common-fields">Common Fields</h3>
+                <div id="common-fields" class="palette-blocks">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <div class="palette-section">
+                <h3 class="palette-category collapsible" data-target="account-fields">Account Fields</h3>
+                <div id="account-fields" class="palette-blocks collapsed">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <div class="palette-section">
+                <h3 class="palette-category collapsible" data-target="amount-fields">Amount Fields</h3>
+                <div id="amount-fields" class="palette-blocks collapsed">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <div class="palette-section">
+                <h3 class="palette-category collapsible" data-target="number-fields">Number Fields</h3>
+                <div id="number-fields" class="palette-blocks collapsed">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <div class="palette-section">
+                <h3 class="palette-category collapsible" data-target="hash-fields">Hash Fields</h3>
+                <div id="hash-fields" class="palette-blocks collapsed">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <div class="palette-section">
+                <h3 class="palette-category collapsible" data-target="blob-fields">Blob Fields</h3>
+                <div id="blob-fields" class="palette-blocks collapsed">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center Panel: Workspace -->
+        <section class="workspace-panel">
+            <div class="workspace-header">
+                <h2>Workspace</h2>
+                <div class="workspace-controls">
+                    <button id="clear-workspace" class="btn btn-secondary">🗑️ Clear</button>
+                    <select id="example-selector" class="btn btn-secondary">
+                        <option value="">Load Example...</option>
+                        <option value="payment">Payment</option>
+                        <option value="trustset">TrustSet</option>
+                        <option value="accountset">AccountSet</option>
+                        <option value="offercreate">OfferCreate</option>
+                    </select>
+                </div>
+            </div>
+            <div id="workspace" class="workspace">
+                <div class="workspace-placeholder">
+                    <p>👆 Drag blocks here to build your transaction</p>
+                    <p class="hint">Start with a Transaction Type block</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel: Output -->
+        <aside class="output-panel">
+            <h2>JSON Output</h2>
+            <div class="output-controls">
+                <button id="copy-json" class="btn btn-primary">📋 Copy</button>
+                <button id="download-json" class="btn btn-primary">💾 Download</button>
+            </div>
+            <pre id="json-output" class="json-output">{
+  "TransactionType": "Payment"
+}</pre>
+            <div id="validation-messages" class="validation-messages">
+                <!-- Validation messages appear here -->
+            </div>
+        </aside>
+    </main>
+
+    <footer>
+        <p>Built for XRPL • Data from <code>definitions.json</code></p>
+        <p style="font-size: 0.75rem; margin-top: 0.5rem; opacity: 0.8;">
+            Shortcuts: <kbd>Ctrl+K</kbd> Clear • <kbd>Ctrl+S</kbd> Download • <kbd>Esc</kbd> Dismiss messages
+        </p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
+

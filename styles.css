@@ -749,3 +749,14 @@ footer kbd {
     50% { background: var(--success-color); }
 }
 
+/* Message links */
+.message-link {
+    color: inherit;
+    text-decoration: underline;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.message-link:hover {
+    opacity: 0.8;
+}

@@ -1,6 +1,6 @@
-// XRPL Transaction Test Generator
+// XRPL Playground
 // Main application logic
-// Version 2.2.2 - Simplified transaction signing using client.submitAndWait with autofill
+// Version 2.3.2 - Updated branding to "Playground"
 
 // Global state
 let definitions = null;
@@ -237,6 +237,12 @@ function setTransactionType(typeName) {
 
     const blockWrapper = createWorkspaceBlock('TransactionType', 'transaction-type', typeName, true);
     workspace.insertBefore(blockWrapper, workspace.firstChild);
+
+    // Hide transaction type section
+    const txTypeSection = document.getElementById('transaction-type-section');
+    if (txTypeSection) {
+        txTypeSection.style.display = 'none';
+    }
 
     // Show fields section and populate with relevant fields
     showFieldsForTransactionType(typeName);
@@ -498,6 +504,19 @@ function clearWorkspace() {
     workspace.innerHTML = '';
     workspaceBlocks = [];
     transactionType = null;
+
+    // Show transaction type section again
+    const txTypeSection = document.getElementById('transaction-type-section');
+    if (txTypeSection) {
+        txTypeSection.style.display = '';
+    }
+
+    // Hide fields section
+    const fieldsSection = document.getElementById('fields-section');
+    if (fieldsSection) {
+        fieldsSection.style.display = 'none';
+    }
+
     showWorkspacePlaceholder();
     updateJSONOutput();
     clearValidationMessages();
@@ -1119,7 +1138,9 @@ async function submitTransaction() {
         await client.disconnect();
 
         if (result.result.meta.TransactionResult === 'tesSUCCESS') {
-            showMessage(`✅ Transaction successful! Hash: ${result.result.hash}`, 'success');
+            const hash = result.result.hash;
+            const explorerUrl = getExplorerUrl(hash, currentNetwork);
+            showMessageWithLink(`✅ Transaction successful!`, hash, explorerUrl, 'success');
             console.log('Transaction result:', result);
         } else {
             showMessage(`⚠️ Transaction failed: ${result.result.meta.TransactionResult}`, 'warning');
@@ -1130,6 +1151,12 @@ async function submitTransaction() {
         showMessage(`❌ Error: ${error.message}`, 'error');
         console.error('Transaction error:', error);
     }
+}
+
+function getExplorerUrl(hash, network) {
+    // Map network to subdomain
+    const subdomain = network === 'mainnet' ? 'livenet' : network;
+    return `https://${subdomain}.xrpl.org/transactions/${hash}`;
 }
 
 function updateWorkspaceWithTransaction(transaction) {
@@ -1184,5 +1211,32 @@ function showMessage(message, type = 'info') {
     setTimeout(() => {
         messageDiv.remove();
     }, 5000);
+}
+
+function showMessageWithLink(message, linkText, url, type = 'info') {
+    const container = document.getElementById('validation-messages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `validation-message ${type}`;
+
+    // Add message text
+    const textSpan = document.createElement('span');
+    textSpan.textContent = message + ' ';
+    messageDiv.appendChild(textSpan);
+
+    // Add link
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = linkText;
+    link.className = 'message-link';
+    messageDiv.appendChild(link);
+
+    container.appendChild(messageDiv);
+
+    // Auto-remove after 10 seconds (longer for links)
+    setTimeout(() => {
+        messageDiv.remove();
+    }, 10000);
 }
 

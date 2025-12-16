@@ -120,7 +120,7 @@ header p {
 /* Panel Styles */
 .palette-panel,
 .workspace-panel,
-.output-panel {
+.test-queue-panel {
     background: white;
     border-radius: 12px;
     padding: 1.5rem;
@@ -132,15 +132,31 @@ header p {
 .workspace-panel {
     display: flex;
     flex-direction: column;
-    overflow-y: hidden;
+    overflow-y: auto;
 }
 
 .palette-panel h2,
 .workspace-panel h2,
-.output-panel h2 {
+.test-queue-panel h2 {
     font-size: 1.2rem;
     margin-bottom: 1rem;
     color: var(--secondary-color);
+}
+
+.test-queue-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.test-queue-panel-header h2 {
+    margin: 0;
+}
+
+.btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
 }
 
 /* Palette Sections */
@@ -396,14 +412,22 @@ header p {
     gap: 0.5rem;
 }
 
+.current-test-label {
+    font-size: 0.875rem;
+    color: #666;
+    margin-top: 0.25rem;
+    font-weight: 500;
+}
+
 .workspace {
-    min-height: 400px;
+    min-height: 300px;
+    max-height: 500px;
     background: var(--bg-light);
     border: 2px dashed var(--border-color);
     border-radius: 8px;
     padding: 1rem;
     overflow-y: auto;
-    flex: 1;
+    flex-shrink: 0;
 }
 
 .workspace.drag-over {
@@ -539,6 +563,16 @@ header p {
     background: #d0d0d0;
 }
 
+.btn-success {
+    background: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #218838;
+    transform: translateY(-1px);
+}
+
 /* Example Selector */
 #example-selector {
     padding: 0.5rem 0.75rem;
@@ -629,7 +663,7 @@ footer kbd {
 
     .palette-panel,
     .workspace-panel,
-    .output-panel {
+    .test-queue-panel {
         max-height: none;
     }
 }
@@ -759,4 +793,466 @@ footer kbd {
 
 .message-link:hover {
     opacity: 0.8;
+}
+
+/* Transaction Cards */
+.transaction-card {
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    background: white;
+    transition: all 0.3s ease;
+}
+
+.transaction-card.status-pending {
+    border-color: #6c757d;
+}
+
+.transaction-card.status-running {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 10px rgba(74, 144, 226, 0.3);
+}
+
+.transaction-card.status-passed {
+    border-color: var(--success-color);
+}
+
+.transaction-card.status-failed {
+    border-color: var(--error-color);
+}
+
+.transaction-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-light);
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 6px 6px 0 0;
+}
+
+.transaction-name {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.transaction-name:hover {
+    background: rgba(0,0,0,0.05);
+}
+
+.transaction-name:focus {
+    outline: none;
+    background: white;
+    box-shadow: 0 0 0 2px var(--primary-color);
+}
+
+.transaction-status {
+    font-size: 0.85rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.transaction-status.pending {
+    background: #e9ecef;
+    color: #6c757d;
+}
+
+.transaction-status.running {
+    background: #cfe2ff;
+    color: var(--primary-color);
+}
+
+.transaction-status.passed {
+    background: #d1e7dd;
+    color: var(--success-color);
+}
+
+.transaction-status.failed {
+    background: #f8d7da;
+    color: var(--error-color);
+}
+
+.collapse-btn,
+.remove-transaction-btn {
+    background: transparent;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.collapse-btn:hover,
+.remove-transaction-btn:hover {
+    background: rgba(0,0,0,0.1);
+}
+
+.transaction-body {
+    padding: 1rem;
+    transition: all 0.3s ease;
+}
+
+.transaction-body.collapsed {
+    display: none;
+}
+
+.transaction-footer {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.run-test-btn {
+    padding: 0.5rem 1rem;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.run-test-btn:hover {
+    background: #3d7dd6;
+    transform: translateY(-1px);
+}
+
+.run-test-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Test Queue Section */
+.test-queue-section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid var(--border-color);
+}
+
+.test-queue-section h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    color: var(--text-dark);
+}
+
+.test-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.test-queue-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.test-queue-item:hover {
+    background: #f0f0f0;
+    border-color: var(--primary-color);
+}
+
+.test-queue-item.active {
+    background: #e3f2fd;
+    border-color: var(--primary-color);
+    border-width: 2px;
+}
+
+.test-queue-item.status-passed {
+    background: #d1e7dd;
+    border-color: var(--success-color);
+}
+
+.test-queue-item.status-failed {
+    background: #f8d7da;
+    border-color: var(--error-color);
+}
+
+.test-queue-item.status-running {
+    background: #cfe2ff;
+    border-color: var(--primary-color);
+}
+
+.test-queue-number {
+    font-weight: 700;
+    color: #666;
+    min-width: 1.5rem;
+}
+
+.test-queue-status {
+    font-size: 1.2rem;
+}
+
+.test-queue-name {
+    flex: 1;
+    font-weight: 500;
+    color: var(--text-dark);
+}
+
+.test-queue-type {
+    font-size: 0.75rem;
+    color: #666;
+    background: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+.test-queue-actions {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.test-queue-btn {
+    padding: 0.25rem 0.5rem;
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.test-queue-btn:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.test-queue-btn.delete:hover {
+    background: var(--error-color);
+    border-color: var(--error-color);
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    animation: fadeIn 0.2s;
+}
+
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    animation: slideIn 0.3s;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--text-dark);
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    color: #999;
+    cursor: pointer;
+    padding: 0;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.modal-close:hover {
+    background: var(--bg-light);
+    color: var(--text-dark);
+}
+
+.modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.json-modal-controls {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Toast Notifications */
+.toast-container {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-width: 400px;
+    pointer-events: none;
+}
+
+.toast {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    animation: toastSlideIn 0.3s ease-out;
+    pointer-events: all;
+    border-left: 4px solid var(--primary-color);
+    min-width: 300px;
+}
+
+.toast.success {
+    border-left-color: var(--success-color);
+}
+
+.toast.error {
+    border-left-color: var(--error-color);
+}
+
+.toast.warning {
+    border-left-color: var(--warning-color);
+}
+
+.toast.info {
+    border-left-color: var(--primary-color);
+}
+
+.toast-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.toast-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.toast-message {
+    color: var(--text-dark);
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.toast-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.toast-link:hover {
+    text-decoration: underline;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.toast-close:hover {
+    background: var(--bg-light);
+    color: var(--text-dark);
+}
+
+.toast.removing {
+    animation: toastSlideOut 0.3s ease-out forwards;
+}
+
+@keyframes toastSlideIn {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes toastSlideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(400px);
+        opacity: 0;
+    }
 }

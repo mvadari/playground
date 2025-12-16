@@ -62,8 +62,15 @@
         <!-- Center Panel: Workspace -->
         <section class="workspace-panel">
             <div class="workspace-header">
-                <h2>Workspace</h2>
+                <div>
+                    <h2>Workspace</h2>
+                    <div id="current-test-label" class="current-test-label">Editing: Test 1</div>
+                </div>
                 <div class="workspace-controls">
+                    <button id="show-json-btn" class="btn btn-secondary">📄 Show JSON</button>
+                    <button id="add-test-btn" class="btn btn-success">➕ Add Test</button>
+                    <button id="run-current-test-btn" class="btn btn-primary">▶️ Run This Test</button>
+                    <button id="run-all-tests-btn" class="btn btn-primary">▶️ Run All Tests</button>
                     <button id="clear-workspace" class="btn btn-secondary">🗑️ Clear</button>
                     <select id="example-selector" class="btn btn-secondary">
                         <option value="">Load Example...</option>
@@ -72,7 +79,6 @@
                         <option value="accountset">AccountSet</option>
                         <option value="offercreate">OfferCreate</option>
                     </select>
-                    <button id="submit-tx-btn" class="btn btn-primary">🚀 Submit to XRPL</button>
                 </div>
             </div>
             <div id="workspace" class="workspace">
@@ -81,20 +87,14 @@
                     <p class="hint">Start with a Transaction Type block</p>
                 </div>
             </div>
+
         </section>
 
-        <!-- Right Panel: Output -->
-        <aside class="output-panel">
-            <h2>JSON Output</h2>
-            <div class="output-controls">
-                <button id="copy-json" class="btn btn-primary">📋 Copy</button>
-                <button id="download-json" class="btn btn-primary">💾 Download</button>
-            </div>
-            <pre id="json-output" class="json-output">{
-  "TransactionType": "Payment"
-}</pre>
-            <div id="validation-messages" class="validation-messages">
-                <!-- Validation messages appear here -->
+        <!-- Right Panel: Test Queue -->
+        <aside class="test-queue-panel">
+            <h2>Test Queue</h2>
+            <div id="test-queue-right" class="test-queue">
+                <!-- Test items will be rendered here -->
             </div>
         </aside>
     </main>
@@ -105,6 +105,29 @@
             Shortcuts: <kbd>Ctrl+K</kbd> Clear • <kbd>Ctrl+S</kbd> Download • <kbd>Esc</kbd> Dismiss messages
         </p>
     </footer>
+
+    <!-- JSON Modal -->
+    <div id="json-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Transaction JSON</h2>
+                <button id="close-json-modal" class="modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="json-modal-controls">
+                    <button id="copy-json" class="btn btn-primary">📋 Copy</button>
+                    <button id="download-json" class="btn btn-primary">💾 Download</button>
+                </div>
+                <pre id="json-output" class="json-output"></pre>
+                <div id="validation-messages" class="validation-messages">
+                    <!-- Validation messages appear here (in modal only) -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
 
     <script src="https://unpkg.com/xrpl@3.0.0/build/xrpl-latest-min.js"></script>
     <script src="app.js"></script>

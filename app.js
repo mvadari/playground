@@ -4,20 +4,56 @@
 
 // Global state
 let definitions = null;
-let workspaceBlocks = [];
-let transactionType = null;
+let transactions = [];  // Array of transaction objects
+let currentTransactionId = null;  // Active transaction being edited
 let draggedData = null;
 let currentNetwork = 'testnet';
 let accounts = [];
+let nextTransactionNumber = 1;  // For auto-naming transactions
+
+// Legacy support (will be migrated)
+let workspaceBlocks = [];
+let transactionType = null;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', async () => {
     await loadDefinitions();
+
+    // Load from local storage
+    const hasStoredTests = loadTestsFromStorage();
+    const hasStoredAccounts = loadAccountsFromStorage();
+    const hasStoredNetwork = loadNetworkFromStorage();
+
+    // Create first transaction if no stored tests
+    if (!hasStoredTests) {
+        addTransaction('Test 1');
+    }
+
+    // Update network selector UI if network was loaded from storage
+    if (hasStoredNetwork) {
+        document.getElementById('network-select').value = currentNetwork;
+    }
+
     initializePalette();
     initializeEventListeners();
     initializeKeyboardShortcuts();
     initializeNetworkManagement();
+    renderWorkspace();
+    updateCurrentTestLabel();
     updateJSONOutput();
+
+    // Render accounts if they were loaded from storage
+    if (hasStoredAccounts) {
+        renderAccounts();
+    }
+
+    // Show toast if data was loaded
+    if (hasStoredTests || hasStoredAccounts) {
+        const items = [];
+        if (hasStoredTests) items.push(`${transactions.length} test(s)`);
+        if (hasStoredAccounts) items.push(`${accounts.length} account(s)`);
+        showToast(`💾 Loaded ${items.join(' and ')} from local storage`, 'success', 3000);
+    }
 });
 
 // Load definitions.json
@@ -30,6 +66,388 @@ async function loadDefinitions() {
         console.error('Error loading definitions:', error);
         showValidationMessage('Failed to load definitions.json', 'error');
     }
+}
+
+// Transaction Management Functions
+function generateTransactionId() {
+    return 'tx-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+}
+
+function createTransaction(name = null) {
+    const id = generateTransactionId();
+    const transactionName = name || `Test ${nextTransactionNumber}`;
+    nextTransactionNumber++;
+
+    return {
+        id: id,
+        name: transactionName,
+        type: null,  // TransactionType
+        blocks: [],  // Field blocks
+        status: 'pending',  // pending | running | passed | failed
+        expectedResult: 'tesSUCCESS',
+        actualResult: null,
+        submittedAt: null,
+        hash: null
+    };
+}
+
+function addTransaction(name = null) {
+    const transaction = createTransaction(name);
+    transactions.push(transaction);
+    currentTransactionId = transaction.id;
+    return transaction;
+}
+
+function removeTransaction(id) {
+    const index = transactions.findIndex(tx => tx.id === id);
+    if (index === -1) return;
+
+    transactions.splice(index, 1);
+
+    // Update current transaction ID
+    if (currentTransactionId === id) {
+        if (transactions.length > 0) {
+            currentTransactionId = transactions[0].id;
+        } else {
+            currentTransactionId = null;
+        }
+    }
+
+    saveTestsToStorage();
+}
+
+function getCurrentTransaction() {
+    if (!currentTransactionId) return null;
+    return transactions.find(tx => tx.id === currentTransactionId);
+}
+
+function updateTransactionStatus(id, status, result = null) {
+    const transaction = transactions.find(tx => tx.id === id);
+    if (!transaction) return;
+
+    transaction.status = status;
+    if (result !== null) {
+        transaction.actualResult = result;
+    }
+    if (status === 'running') {
+        transaction.submittedAt = new Date().toISOString();
+    }
+}
+
+function updateTransactionHash(id, hash) {
+    const transaction = transactions.find(tx => tx.id === id);
+    if (transaction) {
+        transaction.hash = hash;
+    }
+}
+
+function updateTransactionTypeSectionVisibility() {
+    const currentTx = getCurrentTransaction();
+    const txTypeSection = document.getElementById('transaction-type-section');
+    const fieldsSection = document.getElementById('fields-section');
+
+    if (!txTypeSection || !fieldsSection) return;
+
+    // Show transaction type section if current transaction has no type
+    if (currentTx && !currentTx.type) {
+        txTypeSection.style.display = '';
+        fieldsSection.style.display = 'none';
+    } else if (currentTx && currentTx.type) {
+        txTypeSection.style.display = 'none';
+        fieldsSection.style.display = '';
+    }
+}
+
+// Transaction UI Rendering
+function renderWorkspace() {
+    const workspace = document.getElementById('workspace');
+    workspace.innerHTML = '';
+
+    if (transactions.length === 0) {
+        showWorkspacePlaceholder();
+        renderTestQueue();
+        return;
+    }
+
+    // Render only the current/active transaction in the workspace
+    const currentTx = getCurrentTransaction();
+    if (currentTx) {
+        renderActiveTransaction(currentTx);
+    } else {
+        showWorkspacePlaceholder();
+    }
+
+    // Render all transactions in the test queue
+    renderTestQueue();
+}
+
+function renderActiveTransaction(transaction) {
+    const workspace = document.getElementById('workspace');
+    workspace.innerHTML = '';
+
+    // Create a simple container for the active transaction (no card wrapper)
+    const container = document.createElement('div');
+    container.className = 'active-transaction';
+    container.id = `transaction-body-${transaction.id}`;
+
+    // Render blocks for this transaction
+    if (transaction.type) {
+        const typeBlock = createWorkspaceBlock('TransactionType', 'transaction-type', transaction.type, true);
+        container.appendChild(typeBlock);
+    }
+
+    transaction.blocks.forEach(block => {
+        const fieldInfo = getFieldInfo(block.fieldName);
+        const blockType = fieldInfo ? getBlockTypeForField(fieldInfo) : 'common-field';
+        const blockElement = createWorkspaceBlock(block.fieldName, blockType, block.value, false);
+        container.appendChild(blockElement);
+    });
+
+    if (!transaction.type && transaction.blocks.length === 0) {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'workspace-placeholder';
+        placeholder.innerHTML = '<p>👆 Drag blocks here to build this transaction</p><p class="hint">Start with a Transaction Type block</p>';
+        container.appendChild(placeholder);
+    }
+
+    workspace.appendChild(container);
+}
+
+function renderTestQueue() {
+    // Render in the right panel
+    const queueContainer = document.getElementById('test-queue-right');
+    if (!queueContainer) {
+        console.error('Test queue container not found!');
+        return;
+    }
+
+    console.log('Rendering test queue with', transactions.length, 'transactions');
+    queueContainer.innerHTML = '';
+
+    if (transactions.length === 0) {
+        const emptyMsg = document.createElement('div');
+        emptyMsg.className = 'test-queue-empty';
+        emptyMsg.textContent = 'No tests yet. Click "Add Test" to create one.';
+        emptyMsg.style.color = '#999';
+        emptyMsg.style.fontStyle = 'italic';
+        emptyMsg.style.padding = '1rem';
+        emptyMsg.style.textAlign = 'center';
+        queueContainer.appendChild(emptyMsg);
+        return;
+    }
+
+    transactions.forEach((transaction, index) => {
+        console.log('Creating queue item for:', transaction.name);
+        const queueItem = createTestQueueItem(transaction, index + 1);
+        queueContainer.appendChild(queueItem);
+    });
+}
+
+function createTestQueueItem(transaction, number) {
+    const item = document.createElement('div');
+    item.className = `test-queue-item status-${transaction.status}`;
+    item.dataset.transactionId = transaction.id;
+
+    // Highlight if this is the current transaction
+    if (transaction.id === currentTransactionId) {
+        item.classList.add('active');
+    }
+
+    // Number
+    const numSpan = document.createElement('span');
+    numSpan.className = 'test-queue-number';
+    numSpan.textContent = `${number}.`;
+
+    // Status icon
+    const statusSpan = document.createElement('span');
+    statusSpan.className = 'test-queue-status';
+    statusSpan.textContent = getStatusIcon(transaction.status);
+
+    // Name (editable on double-click)
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'test-queue-name';
+    nameSpan.textContent = transaction.name;
+    nameSpan.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = transaction.name;
+        input.className = 'test-queue-name-edit';
+        input.style.flex = '1';
+        input.style.border = '1px solid var(--primary-color)';
+        input.style.padding = '0.25rem';
+        input.style.borderRadius = '4px';
+
+        const save = () => {
+            transaction.name = input.value || transaction.name;
+            nameSpan.textContent = transaction.name;
+            nameSpan.style.display = '';
+            input.remove();
+            updateCurrentTestLabel();
+            saveTestsToStorage();
+        };
+
+        input.addEventListener('blur', save);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') save();
+            if (e.key === 'Escape') {
+                nameSpan.style.display = '';
+                input.remove();
+            }
+        });
+
+        nameSpan.style.display = 'none';
+        nameSpan.parentElement.insertBefore(input, nameSpan.nextSibling);
+        input.focus();
+        input.select();
+    });
+
+    // Transaction type badge
+    const typeSpan = document.createElement('span');
+    typeSpan.className = 'test-queue-type';
+    typeSpan.textContent = transaction.type || 'No type';
+
+    // Actions
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'test-queue-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'test-queue-btn';
+    editBtn.textContent = transaction.id === currentTransactionId ? 'Editing' : 'Edit';
+    editBtn.disabled = transaction.id === currentTransactionId;
+    editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        switchToTransaction(transaction.id);
+    });
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'test-queue-btn delete';
+    deleteBtn.textContent = '×';
+    deleteBtn.title = 'Delete test';
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm(`Delete "${transaction.name}"?`)) {
+            removeTransaction(transaction.id);
+            renderWorkspace();
+            updateTransactionTypeSectionVisibility();
+            updateJSONOutput();
+        }
+    });
+
+    actionsDiv.appendChild(editBtn);
+    actionsDiv.appendChild(deleteBtn);
+
+    // Click on item to edit
+    item.addEventListener('click', () => {
+        if (transaction.id !== currentTransactionId) {
+            switchToTransaction(transaction.id);
+        }
+    });
+
+    item.appendChild(numSpan);
+    item.appendChild(statusSpan);
+    item.appendChild(nameSpan);
+    item.appendChild(typeSpan);
+    item.appendChild(actionsDiv);
+
+    return item;
+}
+
+function switchToTransaction(transactionId) {
+    currentTransactionId = transactionId;
+    renderWorkspace();
+    updateTransactionTypeSectionVisibility();
+    updateCurrentTestLabel();
+    updateJSONOutput();
+    saveTestsToStorage();
+}
+
+function updateCurrentTestLabel() {
+    const label = document.getElementById('current-test-label');
+    if (!label) return;
+
+    const currentTx = getCurrentTransaction();
+    if (currentTx) {
+        label.textContent = `Editing: ${currentTx.name}`;
+        label.style.display = '';
+    } else {
+        label.style.display = 'none';
+    }
+}
+
+function getStatusIcon(status) {
+    const icons = {
+        pending: '⏸️',
+        running: '⏳',
+        passed: '✅',
+        failed: '❌'
+    };
+    return icons[status] || '⏸️';
+}
+
+function getStatusText(status) {
+    const texts = {
+        pending: 'Pending',
+        running: 'Running',
+        passed: 'Passed',
+        failed: 'Failed'
+    };
+    return texts[status] || 'Pending';
+}
+
+function handleAddTest() {
+    const newTransaction = addTransaction();
+    renderWorkspace();
+    updateTransactionTypeSectionVisibility();
+    updateCurrentTestLabel();
+    updateJSONOutput();
+    saveTestsToStorage();
+    showMessage(`✅ Added "${newTransaction.name}"`, 'success');
+}
+
+async function runAllTests() {
+    showMessage('🚀 Running all tests...', 'info');
+
+    for (const transaction of transactions) {
+        await runSingleTest(transaction.id);
+    }
+
+    // Show summary
+    const passed = transactions.filter(tx => tx.status === 'passed').length;
+    const failed = transactions.filter(tx => tx.status === 'failed').length;
+    const total = transactions.length;
+
+    if (failed === 0) {
+        showMessage(`✅ All tests passed! (${passed}/${total})`, 'success');
+    } else {
+        showMessage(`⚠️ Tests complete: ${passed} passed, ${failed} failed (${total} total)`, 'warning');
+    }
+}
+
+async function runCurrentTest() {
+    const currentTx = getCurrentTransaction();
+    if (!currentTx) {
+        showMessage('⚠️ No test selected', 'warning');
+        return;
+    }
+    await runSingleTest(currentTx.id);
+}
+
+async function runSingleTest(transactionId) {
+    // This will be implemented in the next phase
+    showMessage('🚧 Test execution coming soon...', 'info');
+}
+
+// JSON Modal Functions
+function showJSONModal() {
+    const modal = document.getElementById('json-modal');
+    modal.classList.add('show');
+    updateJSONOutput(); // Refresh JSON before showing
+}
+
+function hideJSONModal() {
+    const modal = document.getElementById('json-modal');
+    modal.classList.remove('show');
 }
 
 // Initialize block palette
@@ -169,6 +587,18 @@ function initializeEventListeners() {
     document.getElementById('example-selector').addEventListener('change', handleExampleSelection);
     document.getElementById('copy-json').addEventListener('click', copyJSON);
     document.getElementById('download-json').addEventListener('click', downloadJSON);
+    document.getElementById('add-test-btn').addEventListener('click', handleAddTest);
+    document.getElementById('run-current-test-btn').addEventListener('click', runCurrentTest);
+    document.getElementById('run-all-tests-btn').addEventListener('click', runAllTests);
+    document.getElementById('show-json-btn').addEventListener('click', showJSONModal);
+    document.getElementById('close-json-modal').addEventListener('click', hideJSONModal);
+
+    // Close modal when clicking outside
+    document.getElementById('json-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'json-modal') {
+            hideJSONModal();
+        }
+    });
 }
 
 function handleExampleSelection(e) {
@@ -216,33 +646,50 @@ function handleDrop(e) {
 
     draggedData = null;
     updateJSONOutput();
+    saveTestsToStorage();
 }
 
 // Workspace Management
 function setTransactionType(typeName) {
+    const transaction = getCurrentTransaction();
+    if (!transaction) {
+        console.error('No current transaction');
+        return;
+    }
+
+    // Update transaction type in the transaction object
+    transaction.type = typeName;
+
+    // Legacy support
     transactionType = typeName;
 
+    // Find the transaction body for the current transaction
+    const transactionBody = document.getElementById(`transaction-body-${transaction.id}`);
+    if (!transactionBody) {
+        console.error('Transaction body not found');
+        return;
+    }
+
     // Remove existing transaction type block if any
-    const existingTypeBlock = document.querySelector('.workspace-block[data-field="TransactionType"]');
+    const existingTypeBlock = transactionBody.querySelector('.workspace-block[data-field="TransactionType"]');
     if (existingTypeBlock) {
         existingTypeBlock.remove();
     }
 
-    // Add new transaction type block at the top
-    const workspace = document.getElementById('workspace');
-    const placeholder = workspace.querySelector('.workspace-placeholder');
+    // Remove placeholder if present
+    const placeholder = transactionBody.querySelector('.workspace-placeholder');
     if (placeholder) {
         placeholder.remove();
     }
 
     const blockWrapper = createWorkspaceBlock('TransactionType', 'transaction-type', typeName, true);
-    workspace.insertBefore(blockWrapper, workspace.firstChild);
+    transactionBody.insertBefore(blockWrapper, transactionBody.firstChild);
 
-    // Hide transaction type section
-    const txTypeSection = document.getElementById('transaction-type-section');
-    if (txTypeSection) {
-        txTypeSection.style.display = 'none';
-    }
+    // Update section visibility based on current transaction state
+    updateTransactionTypeSectionVisibility();
+
+    // Update test queue to reflect the new transaction type
+    renderTestQueue();
 
     // Show fields section and populate with relevant fields
     showFieldsForTransactionType(typeName);
@@ -322,23 +769,41 @@ function getBlockTypeForField(fieldInfo) {
 }
 
 function addFieldBlock(fieldName, blockType) {
-    // Check if field already exists
-    const existing = document.querySelector(`.workspace-block[data-field="${fieldName}"]`);
+    const transaction = getCurrentTransaction();
+    if (!transaction) {
+        console.error('No current transaction');
+        return;
+    }
+
+    // Check if field already exists in current transaction
+    const existing = transaction.blocks.find(b => b.fieldName === fieldName);
     if (existing) {
         showValidationMessage(`Field "${fieldName}" already added`, 'warning');
         return;
     }
 
-    const workspace = document.getElementById('workspace');
-    const placeholder = workspace.querySelector('.workspace-placeholder');
+    // Find the transaction body for the current transaction
+    const transactionBody = document.getElementById(`transaction-body-${transaction.id}`);
+    if (!transactionBody) {
+        console.error('Transaction body not found');
+        return;
+    }
+
+    const placeholder = transactionBody.querySelector('.workspace-placeholder');
     if (placeholder) {
         placeholder.remove();
     }
 
     const blockWrapper = createWorkspaceBlock(fieldName, blockType, '', false);
-    workspace.appendChild(blockWrapper);
+    transactionBody.appendChild(blockWrapper);
 
-    // Add to workspace blocks array
+    // Add to current transaction's blocks array
+    transaction.blocks.push({
+        fieldName: fieldName,
+        value: ''
+    });
+
+    // Legacy support
     workspaceBlocks.push({
         fieldName: fieldName,
         value: ''
@@ -465,10 +930,20 @@ function createWorkspaceBlock(fieldName, blockType, value, isTransactionType) {
 }
 
 function updateFieldValue(fieldName, value) {
+    const transaction = getCurrentTransaction();
+    if (transaction) {
+        const blockIndex = transaction.blocks.findIndex(b => b.fieldName === fieldName);
+        if (blockIndex >= 0) {
+            transaction.blocks[blockIndex].value = value;
+        }
+    }
+
+    // Legacy support
     const blockIndex = workspaceBlocks.findIndex(b => b.fieldName === fieldName);
     if (blockIndex >= 0) {
         workspaceBlocks[blockIndex].value = value;
     }
+
     updateJSONOutput();
 }
 
@@ -478,8 +953,16 @@ function removeFieldBlock(fieldName) {
         blockElement.remove();
     }
 
+    const transaction = getCurrentTransaction();
+    if (transaction) {
+        transaction.blocks = transaction.blocks.filter(b => b.fieldName !== fieldName);
+    }
+
+    // Legacy support
     workspaceBlocks = workspaceBlocks.filter(b => b.fieldName !== fieldName);
+
     updateJSONOutput();
+    saveTestsToStorage();
 
     // Show placeholder if workspace is empty
     const workspace = document.getElementById('workspace');
@@ -500,24 +983,22 @@ function showWorkspacePlaceholder() {
 }
 
 function clearWorkspace() {
-    const workspace = document.getElementById('workspace');
-    workspace.innerHTML = '';
+    // Clear all transactions
+    transactions = [];
+    currentTransactionId = null;
+    nextTransactionNumber = 1;
+
+    // Legacy support
     workspaceBlocks = [];
     transactionType = null;
 
-    // Show transaction type section again
-    const txTypeSection = document.getElementById('transaction-type-section');
-    if (txTypeSection) {
-        txTypeSection.style.display = '';
-    }
+    // Create a new empty transaction
+    addTransaction('Test 1');
 
-    // Hide fields section
-    const fieldsSection = document.getElementById('fields-section');
-    if (fieldsSection) {
-        fieldsSection.style.display = 'none';
-    }
+    // Update section visibility
+    updateTransactionTypeSectionVisibility();
 
-    showWorkspacePlaceholder();
+    renderWorkspace();
     updateJSONOutput();
     clearValidationMessages();
 }
@@ -532,15 +1013,20 @@ function updateJSONOutput() {
 }
 
 function buildTransactionObject() {
+    const currentTx = getCurrentTransaction();
     const transaction = {};
 
+    // Use current transaction if available, otherwise fall back to legacy
+    const txType = currentTx ? currentTx.type : transactionType;
+    const blocks = currentTx ? currentTx.blocks : workspaceBlocks;
+
     // Add transaction type
-    if (transactionType) {
-        transaction.TransactionType = transactionType;
+    if (txType) {
+        transaction.TransactionType = txType;
     }
 
     // Add fields with values
-    workspaceBlocks.forEach(block => {
+    blocks.forEach(block => {
         // Convert value to string if it's not already
         const valueStr = typeof block.value === 'string' ? block.value : String(block.value);
 
@@ -766,6 +1252,7 @@ function initializeNetworkManagement() {
     document.getElementById('network-select').addEventListener('change', (e) => {
         currentNetwork = e.target.value;
         updateNetworkInfo();
+        saveNetworkToStorage();
         showMessage(`Switched to ${currentNetwork}`, 'info');
     });
 
@@ -774,9 +1261,6 @@ function initializeNetworkManagement() {
 
     // Generate account button
     document.getElementById('generate-account-btn').addEventListener('click', generateAccount);
-
-    // Submit transaction button
-    document.getElementById('submit-tx-btn').addEventListener('click', submitTransaction);
 
     // Transaction type search
     const searchInput = document.getElementById('tx-type-search');
@@ -820,6 +1304,7 @@ function addAccount() {
         seed: null // No seed for manually added accounts
     });
     renderAccounts();
+    saveAccountsToStorage();
     showMessage(`✅ Account added: ${accountAddress}`, 'success');
 }
 
@@ -839,6 +1324,7 @@ async function generateAccount() {
         });
 
         renderAccounts();
+        saveAccountsToStorage();
         showMessage(`✅ Generated new account: ${wallet.address}`, 'success');
 
         // Show seed in a prompt for user to save
@@ -947,6 +1433,7 @@ function renderAccounts() {
         removeBtn.addEventListener('click', () => {
             accounts.splice(index, 1);
             renderAccounts();
+            saveAccountsToStorage();
             showMessage(`🗑️ Account removed: ${account.address}`, 'info');
         });
 
@@ -1200,43 +1687,184 @@ function updateWorkspaceWithTransaction(transaction) {
     updateJSONOutput();
 }
 
-function showMessage(message, type = 'info') {
-    const container = document.getElementById('validation-messages');
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `validation-message ${type}`;
-    messageDiv.textContent = message;
-    container.appendChild(messageDiv);
+// Local Storage Functions
+const STORAGE_KEYS = {
+    ACCOUNTS: 'xrpl_playground_accounts',
+    TESTS: 'xrpl_playground_tests',
+    CURRENT_NETWORK: 'xrpl_playground_network',
+    NEXT_TEST_NUMBER: 'xrpl_playground_next_test_number'
+};
 
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-        messageDiv.remove();
-    }, 5000);
+function saveAccountsToStorage() {
+    try {
+        localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
+        console.log('Accounts saved to local storage:', accounts.length);
+    } catch (e) {
+        console.error('Failed to save accounts to local storage:', e);
+    }
 }
 
-function showMessageWithLink(message, linkText, url, type = 'info') {
-    const container = document.getElementById('validation-messages');
+function loadAccountsFromStorage() {
+    try {
+        const stored = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
+        if (stored) {
+            accounts = JSON.parse(stored);
+            console.log('Accounts loaded from local storage:', accounts.length);
+            return true;
+        }
+    } catch (e) {
+        console.error('Failed to load accounts from local storage:', e);
+    }
+    return false;
+}
+
+function saveTestsToStorage() {
+    try {
+        const testsData = {
+            transactions: transactions,
+            currentTransactionId: currentTransactionId,
+            nextTransactionNumber: nextTransactionNumber
+        };
+        localStorage.setItem(STORAGE_KEYS.TESTS, JSON.stringify(testsData));
+        console.log('Tests saved to local storage:', transactions.length);
+    } catch (e) {
+        console.error('Failed to save tests to local storage:', e);
+    }
+}
+
+function loadTestsFromStorage() {
+    try {
+        const stored = localStorage.getItem(STORAGE_KEYS.TESTS);
+        if (stored) {
+            const testsData = JSON.parse(stored);
+            transactions = testsData.transactions || [];
+            currentTransactionId = testsData.currentTransactionId || null;
+            nextTransactionNumber = testsData.nextTransactionNumber || 1;
+
+            // If we have transactions but no current one, set the first as current
+            if (transactions.length > 0 && !currentTransactionId) {
+                currentTransactionId = transactions[0].id;
+            }
+
+            console.log('Tests loaded from local storage:', transactions.length);
+            return true;
+        }
+    } catch (e) {
+        console.error('Failed to load tests from local storage:', e);
+    }
+    return false;
+}
+
+function saveNetworkToStorage() {
+    try {
+        localStorage.setItem(STORAGE_KEYS.CURRENT_NETWORK, currentNetwork);
+    } catch (e) {
+        console.error('Failed to save network to local storage:', e);
+    }
+}
+
+function loadNetworkFromStorage() {
+    try {
+        const stored = localStorage.getItem(STORAGE_KEYS.CURRENT_NETWORK);
+        if (stored) {
+            currentNetwork = stored;
+            console.log('Network loaded from local storage:', currentNetwork);
+            return true;
+        }
+    } catch (e) {
+        console.error('Failed to load network from local storage:', e);
+    }
+    return false;
+}
+
+function clearAllStorage() {
+    try {
+        Object.values(STORAGE_KEYS).forEach(key => {
+            localStorage.removeItem(key);
+        });
+        console.log('All local storage cleared');
+        showToast('Local storage cleared', 'success');
+    } catch (e) {
+        console.error('Failed to clear local storage:', e);
+    }
+}
+
+// Toast Notification System
+function showToast(message, type = 'info', duration = 5000, link = null) {
+    const container = document.getElementById('toast-container');
+
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    // Icon based on type
+    const iconMap = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+    };
+
+    const icon = document.createElement('div');
+    icon.className = 'toast-icon';
+    icon.textContent = iconMap[type] || iconMap.info;
+
+    // Content
+    const content = document.createElement('div');
+    content.className = 'toast-content';
+
     const messageDiv = document.createElement('div');
-    messageDiv.className = `validation-message ${type}`;
+    messageDiv.className = 'toast-message';
+    messageDiv.textContent = message;
+    content.appendChild(messageDiv);
 
-    // Add message text
-    const textSpan = document.createElement('span');
-    textSpan.textContent = message + ' ';
-    messageDiv.appendChild(textSpan);
+    // Add link if provided
+    if (link) {
+        const linkElement = document.createElement('a');
+        linkElement.href = link.url;
+        linkElement.target = '_blank';
+        linkElement.rel = 'noopener noreferrer';
+        linkElement.textContent = link.text;
+        linkElement.className = 'toast-link';
+        content.appendChild(linkElement);
+    }
 
-    // Add link
-    const link = document.createElement('a');
-    link.href = url;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.textContent = linkText;
-    link.className = 'message-link';
-    messageDiv.appendChild(link);
+    // Close button
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'toast-close';
+    closeBtn.textContent = '×';
+    closeBtn.onclick = () => removeToast(toast);
 
-    container.appendChild(messageDiv);
+    toast.appendChild(icon);
+    toast.appendChild(content);
+    toast.appendChild(closeBtn);
 
-    // Auto-remove after 10 seconds (longer for links)
+    container.appendChild(toast);
+
+    // Auto-remove after duration
+    if (duration > 0) {
+        setTimeout(() => {
+            removeToast(toast);
+        }, duration);
+    }
+
+    return toast;
+}
+
+function removeToast(toast) {
+    toast.classList.add('removing');
     setTimeout(() => {
-        messageDiv.remove();
-    }, 10000);
+        toast.remove();
+    }, 300); // Match animation duration
+}
+
+// Legacy function for backward compatibility
+function showMessage(message, type = 'info') {
+    showToast(message, type, 5000);
+}
+
+// Legacy function for backward compatibility
+function showMessageWithLink(message, linkText, url, type = 'info') {
+    showToast(message, type, 10000, { text: linkText, url: url });
 }
 

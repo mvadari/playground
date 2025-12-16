@@ -719,15 +719,21 @@ function buildTransactionObjectFromTest(transaction) {
 
         console.log(`Processing block: ${block.fieldName}, value:`, block.value, `type: ${typeof block.value}`);
 
-        // If value is already an object (IOU/MPT), use it directly
+        // If value is already an object or array
         if (typeof block.value === 'object') {
-            // Ensure IOU/MPT values are strings
-            const cleanedObject = {};
-            Object.keys(block.value).forEach(key => {
-                cleanedObject[key] = String(block.value[key]);
-            });
-            console.log(`  → Object field, cleaned:`, cleanedObject);
-            txObject[block.fieldName] = cleanedObject;
+            // Check if it's an array (STArray fields like Memos)
+            if (Array.isArray(block.value)) {
+                console.log(`  → Array field (STArray):`, block.value);
+                txObject[block.fieldName] = block.value;
+            } else {
+                // It's an object (IOU/MPT Amount), ensure values are strings
+                const cleanedObject = {};
+                Object.keys(block.value).forEach(key => {
+                    cleanedObject[key] = String(block.value[key]);
+                });
+                console.log(`  → Object field, cleaned:`, cleanedObject);
+                txObject[block.fieldName] = cleanedObject;
+            }
         } else {
             // Get field info to determine type
             const fieldInfo = getFieldInfo(block.fieldName);
@@ -1542,14 +1548,18 @@ function createWorkspaceBlock(fieldName, blockType, value, isTransactionType) {
             // Flags field with checkboxes for transaction-specific flags
             const flagsContainer = createFlagsInput(fieldName, value);
             block.appendChild(flagsContainer);
-        } else if (fieldInfo && (fieldInfo.type === 'STArray' || fieldInfo.type === 'STObject')) {
-            // STArray/STObject field with JSON textarea
+        } else if (fieldInfo && fieldInfo.type === 'STArray') {
+            // STArray field with add/remove items interface
+            const arrayContainer = createSTArrayInput(fieldName, value);
+            block.appendChild(arrayContainer);
+        } else if (fieldInfo && fieldInfo.type === 'STObject') {
+            // STObject field with JSON textarea
             const textarea = document.createElement('textarea');
             textarea.className = 'block-textarea';
-            textarea.placeholder = `Enter ${fieldName} as JSON (e.g., for Memos: [{"Memo":{"MemoData":"..."}}])`;
+            textarea.placeholder = `Enter ${fieldName} as JSON object`;
             textarea.rows = 4;
 
-            // Format existing value if it's an object/array
+            // Format existing value if it's an object
             if (typeof value === 'object') {
                 textarea.value = JSON.stringify(value, null, 2);
             } else {
@@ -1716,6 +1726,234 @@ function updateFlagsValue(fieldName) {
     }
 
     updateFieldValue(fieldName, flagsValue);
+}
+
+// Helper function for STArray field input
+function createSTArrayInput(fieldName, value) {
+    const container = document.createElement('div');
+    container.className = 'starray-container';
+
+    // Parse existing value
+    let items = [];
+    if (Array.isArray(value)) {
+        items = value;
+    } else if (typeof value === 'string' && value.trim()) {
+        try {
+            const parsed = JSON.parse(value);
+            if (Array.isArray(parsed)) {
+                items = parsed;
+            }
+        } catch (err) {
+            // Invalid JSON, start with empty array
+        }
+    }
+
+    // Items list
+    const itemsList = document.createElement('div');
+    itemsList.className = 'starray-items';
+
+    // Function to render items
+    const renderItems = () => {
+        itemsList.innerHTML = '';
+
+        if (items.length === 0) {
+            const emptyMsg = document.createElement('div');
+            emptyMsg.className = 'starray-empty';
+            emptyMsg.textContent = 'No items yet. Click "Add Item" to add one.';
+            itemsList.appendChild(emptyMsg);
+        } else {
+            items.forEach((item, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'starray-item';
+
+                // Check if this is a Memos field - use structured form
+                if (fieldName === 'Memos') {
+                    const memoForm = createMemoForm(item, index, items, fieldName, renderItems);
+                    itemDiv.appendChild(memoForm);
+                } else {
+                    // Generic JSON textarea for other STArray fields
+                    const itemTextarea = document.createElement('textarea');
+                    itemTextarea.className = 'starray-item-textarea';
+                    itemTextarea.rows = 3;
+                    itemTextarea.value = JSON.stringify(item, null, 2);
+                    itemTextarea.placeholder = 'Enter item as JSON object';
+
+                    itemTextarea.addEventListener('input', (e) => {
+                        try {
+                            const parsed = JSON.parse(e.target.value);
+                            items[index] = parsed;
+                            updateFieldValue(fieldName, items);
+                            itemTextarea.classList.remove('json-error');
+                        } catch (err) {
+                            itemTextarea.classList.add('json-error');
+                        }
+                    });
+
+                    itemDiv.appendChild(itemTextarea);
+                }
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'starray-item-remove';
+                removeBtn.textContent = '×';
+                removeBtn.title = 'Remove item';
+                removeBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    items.splice(index, 1);
+                    updateFieldValue(fieldName, items);
+                    renderItems();
+                });
+
+                itemDiv.appendChild(removeBtn);
+                itemsList.appendChild(itemDiv);
+            });
+        }
+    };
+
+    // Add button
+    const addBtn = document.createElement('button');
+    addBtn.className = 'starray-add-btn';
+    addBtn.textContent = '+ Add Item';
+    addBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        // Add a default empty object based on field name
+        let defaultItem = {};
+        if (fieldName === 'Memos') {
+            defaultItem = { Memo: { MemoData: '', MemoType: '' } };
+        }
+        items.push(defaultItem);
+        updateFieldValue(fieldName, items);
+        renderItems();
+    });
+
+    renderItems();
+
+    container.appendChild(itemsList);
+    container.appendChild(addBtn);
+
+    return container;
+}
+
+// Helper function to create structured Memo form
+function createMemoForm(item, index, items, fieldName, renderItems) {
+    const form = document.createElement('div');
+    form.className = 'memo-form';
+
+    // Extract memo data
+    const memo = item.Memo || {};
+    const memoData = memo.MemoData || '';
+    const memoType = memo.MemoType || '';
+    const memoFormat = memo.MemoFormat || '';
+
+    // MemoData input
+    const dataInput = document.createElement('input');
+    dataInput.className = 'memo-input';
+    dataInput.type = 'text';
+    dataInput.placeholder = 'MemoData (hex)';
+    dataInput.value = memoData;
+
+    // MemoType input
+    const typeInput = document.createElement('input');
+    typeInput.className = 'memo-input';
+    typeInput.type = 'text';
+    typeInput.placeholder = 'MemoType (hex)';
+    typeInput.value = memoType;
+
+    // MemoFormat input
+    const formatInput = document.createElement('input');
+    formatInput.className = 'memo-input';
+    formatInput.type = 'text';
+    formatInput.placeholder = 'MemoFormat (hex, optional)';
+    formatInput.value = memoFormat;
+
+    // Update function
+    const updateMemo = () => {
+        const memoObj = {
+            Memo: {}
+        };
+
+        if (dataInput.value.trim()) {
+            memoObj.Memo.MemoData = dataInput.value.trim();
+        }
+        if (typeInput.value.trim()) {
+            memoObj.Memo.MemoType = typeInput.value.trim();
+        }
+        if (formatInput.value.trim()) {
+            memoObj.Memo.MemoFormat = formatInput.value.trim();
+        }
+
+        items[index] = memoObj;
+        updateFieldValue(fieldName, items);
+    };
+
+    dataInput.addEventListener('input', updateMemo);
+    typeInput.addEventListener('input', updateMemo);
+    formatInput.addEventListener('input', updateMemo);
+
+    // Convert to hex buttons
+    const dataConvertBtn = document.createElement('button');
+    dataConvertBtn.className = 'memo-convert-btn';
+    dataConvertBtn.textContent = '→ Hex';
+    dataConvertBtn.title = 'Convert ASCII to hex';
+    dataConvertBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (dataInput.value) {
+            dataInput.value = asciiToHex(dataInput.value);
+            updateMemo();
+        }
+    });
+
+    const typeConvertBtn = document.createElement('button');
+    typeConvertBtn.className = 'memo-convert-btn';
+    typeConvertBtn.textContent = '→ Hex';
+    typeConvertBtn.title = 'Convert ASCII to hex';
+    typeConvertBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (typeInput.value) {
+            typeInput.value = asciiToHex(typeInput.value);
+            updateMemo();
+        }
+    });
+
+    const formatConvertBtn = document.createElement('button');
+    formatConvertBtn.className = 'memo-convert-btn';
+    formatConvertBtn.textContent = '→ Hex';
+    formatConvertBtn.title = 'Convert ASCII to hex';
+    formatConvertBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (formatInput.value) {
+            formatInput.value = asciiToHex(formatInput.value);
+            updateMemo();
+        }
+    });
+
+    // Create input rows with convert buttons
+    const dataRow = document.createElement('div');
+    dataRow.className = 'memo-input-row';
+    dataRow.appendChild(dataInput);
+    dataRow.appendChild(dataConvertBtn);
+
+    const typeRow = document.createElement('div');
+    typeRow.className = 'memo-input-row';
+    typeRow.appendChild(typeInput);
+    typeRow.appendChild(typeConvertBtn);
+
+    const formatRow = document.createElement('div');
+    formatRow.className = 'memo-input-row';
+    formatRow.appendChild(formatInput);
+    formatRow.appendChild(formatConvertBtn);
+
+    form.appendChild(dataRow);
+    form.appendChild(typeRow);
+    form.appendChild(formatRow);
+
+    return form;
+}
+
+// Helper function to convert ASCII to hex
+function asciiToHex(str) {
+    return Array.from(str)
+        .map(char => char.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'))
+        .join('');
 }
 
 // Helper functions for amount field inputs
